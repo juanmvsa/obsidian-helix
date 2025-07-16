@@ -1,0 +1,112 @@
+/* Helix Editor Plugin Styles */
+
+.helix-mode-indicator {
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+	padding: 2px 8px;
+	border-radius: 3px;
+	font-family: var(--font-monospace);
+	font-size: 12px;
+	font-weight: bold;
+	margin-left: 8px;
+}
+
+/* Editor mode styles */
+.helix-normal {
+	background: var(--background-primary);
+}
+
+.helix-insert {
+	background: var(--background-primary);
+}
+
+.helix-insert .cm-cursor {
+	border-left: 2px solid var(--text-accent) !important;
+}
+
+.helix-select {
+	background: var(--background-primary);
+}
+
+.helix-select .cm-selectionBackground {
+	background: var(--text-selection) !important;
+}
+
+/* Selection highlighting */
+.helix-selection-highlight {
+	background: var(--text-selection);
+	border: 1px solid var(--interactive-accent);
+	border-radius: 2px;
+}
+
+/* Settings tab styles */
+.helix-keybinding-reference {
+	margin-top: 20px;
+	font-family: var(--font-monospace);
+}
+
+.keybinding-section {
+	margin-bottom: 20px;
+}
+
+.keybinding-section h4 {
+	margin: 10px 0 5px 0;
+	color: var(--text-accent);
+}
+
+.keybinding-section table {
+	width: 100%;
+	border-collapse: collapse;
+}
+
+.keybinding-section td {
+	padding: 4px 8px;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.keybinding-key {
+	font-weight: bold;
+	color: var(--text-accent);
+	width: 100px;
+}
+
+.keybinding-desc {
+	color: var(--text-muted);
+}
+
+.helix-philosophy {
+	margin-top: 30px;
+	padding: 20px;
+	background: var(--background-secondary);
+	border-radius: 8px;
+	border-left: 4px solid var(--interactive-accent);
+}
+
+.helix-philosophy h3 {
+	margin-top: 0;
+	color: var(--text-accent);
+}
+
+.helix-philosophy ul {
+	margin: 10px 0;
+}
+
+.helix-philosophy li {
+	margin: 8px 0;
+	line-height: 1.4;
+}
+
+.helix-philosophy strong {
+	color: var(--text-normal);
+}
+
+/* Status indicator animations */
+@keyframes modeChange {
+	0% { transform: scale(1); }
+	50% { transform: scale(1.1); }
+	100% { transform: scale(1); }
+}
+
+.helix-mode-indicator.changed {
+	animation: modeChange 0.2s ease-in-out;
+}
