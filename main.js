@@ -302,6 +302,12 @@ var HelixKeybindings = class {
   isPartialCommand(command) {
     const partialCommands = ["g"];
     
+    // First check if this command is already a complete valid command
+    // If it is, don't treat it as partial even if it could be extended
+    if (this.isCompleteCommand(command)) {
+      return false;
+    }
+    
     // Check if this might be a partial custom motion
     if (this.plugin.configManager) {
       const possibleMotions = Array.from(this.plugin.configManager.customMotions.keys())
@@ -310,6 +316,21 @@ var HelixKeybindings = class {
     }
     
     return partialCommands.some((partial) => command.startsWith(partial) && command.length < 2);
+  }
+  
+  isCompleteCommand(command) {
+    // List of basic single-character commands that should execute immediately
+    const basicCommands = [
+      "h", "j", "k", "l", // movement
+      "w", "b", "e", // word movement  
+      "x", "X", "v", "V", // selection
+      "i", "a", "I", "A", "o", "O", // insert
+      "d", "c", "y", "p", "P", // edit
+      "u", "U", "n", "N", "/", // other
+      "s", ";", ","
+    ];
+    
+    return basicCommands.includes(command);
   }
   clearPendingKeys() {
     this.pendingKeys = [];
@@ -1056,11 +1077,15 @@ var HelixConfigManager = class {
   }
   
   async createDefaultConfig() {
-    const defaultConfig = `# Helix configuration file
+    const defaultConfig = `# Helix configuration file for Obsidian
 # Syntax: key = action_type:parameters
 # Available actions: move, select, insert, delete, change, custom
 
 [motions]
+# Insert mode escape sequences - use jk or jj to exit insert mode
+# This removes the typed characters and switches to normal mode
+insert_escape = custom:jk,jj
+
 # Custom word motions
 gt = move:word_forward_end
 gb = move:word_backward_start
@@ -1276,7 +1301,7 @@ var HelixSettingTab = class extends import_obsidian2.PluginSettingTab {
     const philosophyEl = containerEl.createEl("div", { cls: "helix-philosophy" });
     philosophyEl.innerHTML = `
 			<h3>Helix Philosophy & Features</h3>
-			<p>Helix follows a "selection \u2192 action" model, different from Vim's "action \u2192 motion" approach:</p>
+			<p>Helix follows a "selection → action" model, different from Vim's "action → motion" approach:</p>
 			<ul>
 				<li><strong>Selection First:</strong> First select what you want to operate on, then perform the action</li>
 				<li><strong>Visual Feedback:</strong> All operations show immediate visual feedback through selections</li>

@@ -1,0 +1,36 @@
+# Helix configuration file for Obsidian
+# Syntax: key = action_type:parameters
+# Available actions: move, select, insert, delete, change, custom
+
+[motions]
+# Insert mode escape sequences - use jk or jj to exit insert mode
+# This removes the typed characters and switches to normal mode
+insert_escape = custom:jk,jj
+
+# Custom word motions
+gt = move:word_forward_end
+gb = move:word_backward_start
+
+# Custom selection motions  
+gw = select:word
+gs = select:sentence
+gp = select:paragraph
+
+# Custom line operations
+gl = select:line_content
+gL = select:line_full
+
+# Custom navigation
+gj = move:paragraph_down
+gk = move:paragraph_up
+gh = move:line_start_smart
+ge = move:line_end_smart
+
+# Custom edit operations
+gd = delete:word
+gc = change:word
+gy = yank:word
+
+# Examples of more complex motions:
+# <leader>w = custom:toggle_word_wrap
+# <leader>s = custom:sort_selection
