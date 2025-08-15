@@ -746,6 +746,8 @@ var HelixModes = class {
     this.currentMode = "NOR" /* NORMAL */;
     this.plugin = plugin;
     this.keyHandler = this.handleKeyEvent.bind(this);
+    this.insertModeKeys = [];
+    this.insertModeTimeout = null;
   }
   enable() {
     document.addEventListener("keydown", this.keyHandler, true);
@@ -794,6 +796,10 @@ var HelixModes = class {
         this.setMode("NOR" /* NORMAL */);
         return true;
       }
+      // Handle jk escape sequence
+      if (this.handleInsertModeEscape(event, activeView.editor)) {
+        return true;
+      }
       return false;
     }
     if (this.currentMode === "NOR" /* NORMAL */ || this.currentMode === "SEL" /* SELECT */) {
@@ -809,6 +815,63 @@ var HelixModes = class {
   }
   enterNormalMode() {
     this.setMode("NOR" /* NORMAL */);
+  }
+  
+  handleInsertModeEscape(event, editor) {
+    // Get escape sequences from config or use default
+    const escapeSequences = this.getInsertModeEscapeSequences();
+    
+    // Add current key to sequence
+    this.insertModeKeys.push(event.key.toLowerCase());
+    
+    // Clear timeout if it exists
+    if (this.insertModeTimeout) {
+      clearTimeout(this.insertModeTimeout);
+    }
+    
+    // Check if current sequence matches any escape sequence
+    for (const sequence of escapeSequences) {
+      if (this.insertModeKeys.length >= sequence.length) {
+        const recentKeys = this.insertModeKeys.slice(-sequence.length);
+        if (recentKeys.join('') === sequence) {
+          // Remove the typed characters
+          const cursor = editor.getCursor();
+          const line = editor.getLine(cursor.line);
+          const startPos = Math.max(0, cursor.ch - sequence.length);
+          editor.replaceRange(
+            '',
+            { line: cursor.line, ch: startPos },
+            { line: cursor.line, ch: cursor.ch }
+          );
+          
+          // Switch to normal mode
+          this.setMode("NOR" /* NORMAL */);
+          this.insertModeKeys = [];
+          event.preventDefault();
+          return true;
+        }
+      }
+    }
+    
+    // Set timeout to clear keys after delay
+    this.insertModeTimeout = setTimeout(() => {
+      this.insertModeKeys = [];
+    }, 1000);
+    
+    return false;
+  }
+  
+  getInsertModeEscapeSequences() {
+    // Check if configManager has custom escape sequences
+    if (this.plugin.configManager && this.plugin.configManager.customMotions.has('insert_escape')) {
+      const customEscape = this.plugin.configManager.getCustomMotion('insert_escape');
+      if (customEscape && customEscape.params) {
+        return customEscape.params.split(',').map(seq => seq.trim());
+      }
+    }
+    
+    // Default escape sequences
+    return ['jk', 'jj'];
   }
 };
 
@@ -1134,7 +1197,10 @@ var HelixSettingTab = class extends import_obsidian2.PluginSettingTab {
           ["x", "Select entire line"],
           ["X", "Select line above"],
           ["v", "Enter select mode"],
-          ["V", "Select whole line including newline"]
+          ["V", "Select whole line including newline"],
+          ["s", "Select with movement"],
+          [";", "Extend selection"],
+          [",", "Shrink selection"]
         ]
       },
       {
@@ -1143,7 +1209,8 @@ var HelixSettingTab = class extends import_obsidian2.PluginSettingTab {
           ["i/a", "Insert before/after cursor"],
           ["I/A", "Insert at line start/end"],
           ["o/O", "Insert new line below/above"],
-          ["Esc", "Exit insert mode"]
+          ["Esc", "Exit insert mode"],
+          ["jk/jj", "Exit insert mode (configurable)"]
         ]
       },
       {
@@ -1162,6 +1229,17 @@ var HelixSettingTab = class extends import_obsidian2.PluginSettingTab {
           ["n/N", "Next/previous search result"],
           ["u/U", "Undo/redo"]
         ]
+      },
+      {
+        title: "Custom Motions (via .helixrc)",
+        bindings: [
+          ["gt/gb", "Word forward end/backward start"],
+          ["gw/gs/gp", "Select word/sentence/paragraph"],
+          ["gl/gL", "Select line content/full line"],
+          ["gj/gk", "Move paragraph down/up"],
+          ["gh/ge", "Smart line start/end"],
+          ["gd/gc/gy", "Delete/change/yank word"]
+        ]
       }
     ];
     sections.forEach((section) => {
@@ -1179,13 +1257,25 @@ var HelixSettingTab = class extends import_obsidian2.PluginSettingTab {
     helixrcInfoEl.innerHTML = `
 			<strong>Custom .helixrc Configuration:</strong><br>
 			Create a <code>.helixrc</code> file in your vault root to define custom motions and keybindings. 
-			The file uses a simple syntax: <code>key = action:parameters</code><br>
-			Example: <code>gw = select:word</code> creates a custom motion to select word under cursor.
+			The file uses a simple syntax: <code>key = action:parameters</code><br><br>
+			<strong>Available Actions:</strong>
+			<ul style="margin: 5px 0; padding-left: 20px;">
+				<li><code>move:</code> - Cursor movement (word_forward_end, paragraph_up, line_start_smart, etc.)</li>
+				<li><code>select:</code> - Text selection (word, sentence, paragraph, line_content, etc.)</li>
+				<li><code>delete:</code> - Delete operations (word, etc.)</li>
+				<li><code>change:</code> - Change operations (word, etc.)</li>
+				<li><code>yank:</code> - Copy operations (word, etc.)</li>
+				<li><code>custom:</code> - Special functions (jk,jj for insert_escape, sort_selection, etc.)</li>
+			</ul>
+			<strong>Examples:</strong><br>
+			<code>gw = select:word</code> - Select word under cursor<br>
+			<code>insert_escape = custom:jk,jj</code> - Use jk/jj to exit insert mode<br>
+			<code>gd = delete:word</code> - Delete word under cursor
 		`;
 
     const philosophyEl = containerEl.createEl("div", { cls: "helix-philosophy" });
     philosophyEl.innerHTML = `
-			<h3>Helix Philosophy</h3>
+			<h3>Helix Philosophy & Features</h3>
 			<p>Helix follows a "selection \u2192 action" model, different from Vim's "action \u2192 motion" approach:</p>
 			<ul>
 				<li><strong>Selection First:</strong> First select what you want to operate on, then perform the action</li>
@@ -1193,6 +1283,9 @@ var HelixSettingTab = class extends import_obsidian2.PluginSettingTab {
 				<li><strong>Composable:</strong> Commands can be combined naturally through the selection model</li>
 				<li><strong>Predictable:</strong> What you see selected is exactly what will be affected</li>
 				<li><strong>Customizable:</strong> Define your own motions and keybindings via <code>.helixrc</code> file</li>
+				<li><strong>Vim-like Escape:</strong> Use <code>jk</code> or <code>jj</code> to exit insert mode (configurable)</li>
+				<li><strong>Extended Motions:</strong> Custom paragraph, sentence, and smart line movements</li>
+				<li><strong>Desktop Optimized:</strong> Full filesystem access for configuration management</li>
 			</ul>
 		`;
   }
