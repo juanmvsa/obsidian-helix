@@ -1,11 +1,11 @@
 {
 	"id": "obsidian-helix",
-	"name": "Helix Editor Support",
+	"name": "Obsidian Helix",
 	"version": "1.0.0",
 	"minAppVersion": "0.15.0",
-	"description": "Helix editor keybindings and editing philosophy for Obsidian",
+	"description": "Helix editor keybindings and editing philosophy for Obsidian.",
 	"author": "Juan Vásquez",
-	"authorUrl": "",
-	"fundingUrl": "",
-	"isDesktopOnly": false
+	"authorUrl": "https://juan-vasquez.com",
+	"fundingUrl": "https://buymeacoffee.com/juanvasquez",
+	"isDesktopOnly": true
 }

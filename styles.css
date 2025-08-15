@@ -110,3 +110,65 @@
 .helix-mode-indicator.changed {
 	animation: modeChange 0.2s ease-in-out;
 }
+
+/* Custom motions display styles */
+.custom-motions-display {
+	margin: 20px 0;
+	padding: 15px;
+	background: var(--background-secondary);
+	border-radius: 6px;
+	border: 1px solid var(--background-modifier-border);
+}
+
+.custom-motions-display h4 {
+	margin: 0 0 10px 0;
+	color: var(--text-accent);
+	font-size: 14px;
+}
+
+.custom-motions-table {
+	width: 100%;
+	border-collapse: collapse;
+	font-family: var(--font-monospace);
+	font-size: 12px;
+}
+
+.custom-motions-table th {
+	text-align: left;
+	padding: 6px 8px;
+	border-bottom: 2px solid var(--background-modifier-border);
+	color: var(--text-accent);
+	font-weight: bold;
+}
+
+.custom-motions-table td {
+	padding: 4px 8px;
+	border-bottom: 1px solid var(--background-modifier-border-focus);
+}
+
+.custom-motions-table .keybinding-key {
+	color: var(--text-accent);
+	font-weight: bold;
+	min-width: 80px;
+}
+
+.custom-motions-table .keybinding-desc {
+	color: var(--text-muted);
+}
+
+/* .helixrc file indicator */
+.helixrc-info {
+	margin: 10px 0;
+	padding: 10px;
+	background: var(--background-primary-alt);
+	border-radius: 4px;
+	font-size: 13px;
+	color: var(--text-muted);
+}
+
+.helixrc-info code {
+	background: var(--background-modifier-border);
+	padding: 2px 4px;
+	border-radius: 2px;
+	font-family: var(--font-monospace);
+}

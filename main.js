@@ -92,6 +92,12 @@ var HelixKeybindings = class {
   }
   executeCommand(command, editor) {
     const mode = this.plugin.modes.getCurrentMode();
+    
+    // Check for custom motions first
+    if (this.plugin.configManager && this.plugin.configManager.hasCustomMotion(command)) {
+      return this.executeCustomMotion(command, editor);
+    }
+    
     switch (command) {
       // Movement (Helix uses hjkl like vim but with different philosophy)
       case "h":
@@ -174,8 +180,135 @@ var HelixKeybindings = class {
         return false;
     }
   }
+  executeCustomMotion(command, editor) {
+    const motion = this.plugin.configManager.getCustomMotion(command);
+    if (!motion) return false;
+    
+    try {
+      switch (motion.action) {
+        case 'move':
+          return this.executeCustomMove(motion.params, editor);
+        case 'select':
+          return this.executeCustomSelect(motion.params, editor);
+        case 'insert':
+          return this.executeCustomInsert(motion.params, editor);
+        case 'delete':
+          return this.executeCustomDelete(motion.params, editor);
+        case 'change':
+          return this.executeCustomChange(motion.params, editor);
+        case 'yank':
+          return this.executeCustomYank(motion.params, editor);
+        case 'custom':
+          return this.executeCustomCommand(motion.params, editor);
+        default:
+          console.warn(`Unknown custom motion action: ${motion.action}`);
+          return false;
+      }
+    } catch (error) {
+      console.error(`Error executing custom motion ${command}:`, error);
+      return false;
+    }
+  }
+  
+  executeCustomMove(params, editor) {
+    switch (params) {
+      case 'word_forward_end':
+        return this.moveWordEnd(editor);
+      case 'word_backward_start':
+        return this.moveWordBackward(editor);
+      case 'paragraph_down':
+        return this.moveParagraphDown(editor);
+      case 'paragraph_up':
+        return this.moveParagraphUp(editor);
+      case 'line_start_smart':
+        return this.moveLineStartSmart(editor);
+      case 'line_end_smart':
+        return this.moveLineEndSmart(editor);
+      default:
+        console.warn(`Unknown custom move: ${params}`);
+        return false;
+    }
+  }
+  
+  executeCustomSelect(params, editor) {
+    switch (params) {
+      case 'word':
+        return this.selectWordAtCursor(editor);
+      case 'sentence':
+        return this.selectSentence(editor);
+      case 'paragraph':
+        return this.selectParagraph(editor);
+      case 'line_content':
+        return this.selectLineContent(editor);
+      case 'line_full':
+        return this.selectLineFull(editor);
+      default:
+        console.warn(`Unknown custom select: ${params}`);
+        return false;
+    }
+  }
+  
+  executeCustomInsert(params, editor) {
+    // Custom insert actions can be added here
+    return false;
+  }
+  
+  executeCustomDelete(params, editor) {
+    switch (params) {
+      case 'word':
+        this.selectWordAtCursor(editor);
+        return this.deleteSelection(editor);
+      default:
+        return false;
+    }
+  }
+  
+  executeCustomChange(params, editor) {
+    switch (params) {
+      case 'word':
+        this.selectWordAtCursor(editor);
+        return this.changeSelection(editor);
+      default:
+        return false;
+    }
+  }
+  
+  executeCustomYank(params, editor) {
+    switch (params) {
+      case 'word':
+        this.selectWordAtCursor(editor);
+        return this.yankSelection(editor);
+      default:
+        return false;
+    }
+  }
+  
+  executeCustomCommand(params, editor) {
+    // Custom commands can be added here
+    // Examples: toggle_word_wrap, sort_selection, etc.
+    switch (params) {
+      case 'toggle_word_wrap':
+        // Toggle word wrap functionality
+        return true;
+      case 'sort_selection':
+        // Sort selected lines
+        return this.sortSelection(editor);
+      default:
+        console.warn(`Unknown custom command: ${params}`);
+        return false;
+    }
+  }
+
   isPartialCommand(command) {
     const partialCommands = ["g"];
+    
+    // Check if this might be a partial custom motion
+    if (this.plugin.configManager) {
+      const possibleMotions = Array.from(this.plugin.configManager.customMotions.keys())
+        .filter(motion => motion.startsWith(command) && motion.length > command.length);
+      if (possibleMotions.length > 0) return true;
+    }
+    
     return partialCommands.some((partial) => command.startsWith(partial) && command.length < 2);
   }
   clearPendingKeys() {
@@ -413,6 +546,197 @@ var HelixKeybindings = class {
     this.plugin.app.commands.executeCommandById("editor:redo");
     return true;
   }
+  
+  // Custom motion implementations
+  moveParagraphDown(editor) {
+    const cursor = editor.getCursor();
+    const content = editor.getValue();
+    const lines = content.split('\n');
+    let nextParagraph = cursor.line + 1;
+    
+    // Find next empty line (paragraph boundary)
+    while (nextParagraph < lines.length && lines[nextParagraph].trim() !== '') {
+      nextParagraph++;
+    }
+    // Skip empty lines
+    while (nextParagraph < lines.length && lines[nextParagraph].trim() === '') {
+      nextParagraph++;
+    }
+    
+    if (nextParagraph < lines.length) {
+      editor.setCursor({ line: nextParagraph, ch: 0 });
+    }
+    return true;
+  }
+  
+  moveParagraphUp(editor) {
+    const cursor = editor.getCursor();
+    const content = editor.getValue();
+    const lines = content.split('\n');
+    let prevParagraph = cursor.line - 1;
+    
+    // Find previous empty line (paragraph boundary)
+    while (prevParagraph >= 0 && lines[prevParagraph].trim() !== '') {
+      prevParagraph--;
+    }
+    // Skip empty lines
+    while (prevParagraph >= 0 && lines[prevParagraph].trim() === '') {
+      prevParagraph--;
+    }
+    
+    if (prevParagraph >= 0) {
+      editor.setCursor({ line: prevParagraph, ch: 0 });
+    }
+    return true;
+  }
+  
+  moveLineStartSmart(editor) {
+    const cursor = editor.getCursor();
+    const line = editor.getLine(cursor.line);
+    const firstNonSpace = line.search(/\S/);
+    
+    if (firstNonSpace === -1 || cursor.ch === firstNonSpace) {
+      // If line is empty or cursor at first non-space, go to column 0
+      editor.setCursor({ line: cursor.line, ch: 0 });
+    } else {
+      // Otherwise go to first non-space character
+      editor.setCursor({ line: cursor.line, ch: firstNonSpace });
+    }
+    return true;
+  }
+  
+  moveLineEndSmart(editor) {
+    const cursor = editor.getCursor();
+    const line = editor.getLine(cursor.line);
+    const lastNonSpace = line.search(/\s*$/);
+    
+    if (cursor.ch === lastNonSpace) {
+      // If at last non-space, go to end of line
+      editor.setCursor({ line: cursor.line, ch: line.length });
+    } else {
+      // Otherwise go to last non-space character
+      editor.setCursor({ line: cursor.line, ch: lastNonSpace });
+    }
+    return true;
+  }
+  
+  selectWordAtCursor(editor) {
+    const cursor = editor.getCursor();
+    const line = editor.getLine(cursor.line);
+    let start = cursor.ch;
+    let end = cursor.ch;
+    
+    // Find word boundaries
+    while (start > 0 && /\w/.test(line[start - 1])) start--;
+    while (end < line.length && /\w/.test(line[end])) end++;
+    
+    if (start < end) {
+      editor.setSelection(
+        { line: cursor.line, ch: start },
+        { line: cursor.line, ch: end }
+      );
+      this.plugin.modes.enterSelectMode();
+    }
+    return true;
+  }
+  
+  selectSentence(editor) {
+    const cursor = editor.getCursor();
+    const content = editor.getValue();
+    const offset = editor.posToOffset(cursor);
+    
+    // Find sentence boundaries (. ! ?)
+    let start = offset;
+    let end = offset;
+    
+    // Find start of sentence
+    while (start > 0 && !/[.!?]/.test(content[start - 1])) {
+      start--;
+    }
+    // Skip whitespace at beginning
+    while (start < content.length && /\s/.test(content[start])) {
+      start++;
+    }
+    
+    // Find end of sentence
+    while (end < content.length && !/[.!?]/.test(content[end])) {
+      end++;
+    }
+    if (end < content.length) end++; // Include the punctuation
+    
+    const startPos = editor.offsetToPos(start);
+    const endPos = editor.offsetToPos(end);
+    editor.setSelection(startPos, endPos);
+    this.plugin.modes.enterSelectMode();
+    return true;
+  }
+  
+  selectParagraph(editor) {
+    const cursor = editor.getCursor();
+    const content = editor.getValue();
+    const lines = content.split('\n');
+    
+    let startLine = cursor.line;
+    let endLine = cursor.line;
+    
+    // Find paragraph start (previous empty line)
+    while (startLine > 0 && lines[startLine - 1].trim() !== '') {
+      startLine--;
+    }
+    
+    // Find paragraph end (next empty line)
+    while (endLine < lines.length - 1 && lines[endLine + 1].trim() !== '') {
+      endLine++;
+    }
+    
+    editor.setSelection(
+      { line: startLine, ch: 0 },
+      { line: endLine, ch: lines[endLine].length }
+    );
+    this.plugin.modes.enterSelectMode();
+    return true;
+  }
+  
+  selectLineContent(editor) {
+    const cursor = editor.getCursor();
+    const line = editor.getLine(cursor.line);
+    const start = line.search(/\S/);
+    const end = line.search(/\s*$/);
+    
+    if (start !== -1) {
+      editor.setSelection(
+        { line: cursor.line, ch: start },
+        { line: cursor.line, ch: end }
+      );
+    } else {
+      // Empty line, select nothing
+      editor.setSelection(cursor, cursor);
+    }
+    this.plugin.modes.enterSelectMode();
+    return true;
+  }
+  
+  selectLineFull(editor) {
+    const cursor = editor.getCursor();
+    const line = editor.getLine(cursor.line);
+    
+    editor.setSelection(
+      { line: cursor.line, ch: 0 },
+      { line: cursor.line + 1, ch: 0 }
+    );
+    this.plugin.modes.enterSelectMode();
+    return true;
+  }
+  
+  sortSelection(editor) {
+    const selection = editor.getSelection();
+    if (selection) {
+      const lines = selection.split('\n');
+      const sorted = lines.sort().join('\n');
+      editor.replaceSelection(sorted);
+    }
+    return true;
+  }
 };
 
 // helix-modes.ts
@@ -594,6 +918,126 @@ var SelectionManager = class {
   }
 };
 
+// helix-config.ts
+var HelixConfigManager = class {
+  constructor(plugin) {
+    this.plugin = plugin;
+    this.customMotions = new Map();
+    this.configPath = this.getConfigPath();
+  }
+  
+  getConfigPath() {
+    const vaultPath = this.plugin.app.vault.adapter.path.path;
+    return `${vaultPath}/.helixrc`;
+  }
+  
+  async loadConfig() {
+    try {
+      const fs = require('fs').promises;
+      const configContent = await fs.readFile(this.configPath, 'utf8');
+      this.parseConfig(configContent);
+    } catch (error) {
+      if (error.code !== 'ENOENT') {
+        console.warn('Failed to load .helixrc:', error);
+      }
+    }
+  }
+  
+  parseConfig(content) {
+    const lines = content.split('\n');
+    let currentSection = null;
+    
+    for (const line of lines) {
+      const trimmed = line.trim();
+      
+      // Skip comments and empty lines
+      if (!trimmed || trimmed.startsWith('#')) continue;
+      
+      // Section headers
+      if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+        currentSection = trimmed.slice(1, -1);
+        continue;
+      }
+      
+      // Parse motion definitions
+      if (currentSection === 'motions') {
+        this.parseMotionDefinition(trimmed);
+      }
+    }
+  }
+  
+  parseMotionDefinition(line) {
+    // Format: key = action_type:parameters
+    // Examples:
+    // gt = move:word_forward
+    // gw = select:word
+    // <leader>d = delete:line
+    const match = line.match(/^(.+?)\s*=\s*(.+)$/);
+    if (!match) return;
+    
+    const [, key, definition] = match;
+    const [action, ...params] = definition.split(':');
+    
+    this.customMotions.set(key.trim(), {
+      action: action.trim(),
+      params: params.join(':').trim()
+    });
+  }
+  
+  getCustomMotion(key) {
+    return this.customMotions.get(key);
+  }
+  
+  hasCustomMotion(key) {
+    return this.customMotions.has(key);
+  }
+  
+  async createDefaultConfig() {
+    const defaultConfig = `# Helix configuration file
+# Syntax: key = action_type:parameters
+# Available actions: move, select, insert, delete, change, custom
+
+[motions]
+# Custom word motions
+gt = move:word_forward_end
+gb = move:word_backward_start
+
+# Custom selection motions  
+gw = select:word
+gs = select:sentence
+gp = select:paragraph
+
+# Custom line operations
+gl = select:line_content
+gL = select:line_full
+
+# Custom navigation
+gj = move:paragraph_down
+gk = move:paragraph_up
+gh = move:line_start_smart
+ge = move:line_end_smart
+
+# Custom edit operations
+gd = delete:word
+gc = change:word
+gy = yank:word
+
+# Examples of more complex motions:
+# <leader>w = custom:toggle_word_wrap
+# <leader>s = custom:sort_selection
+`;
+    
+    try {
+      const fs = require('fs').promises;
+      await fs.writeFile(this.configPath, defaultConfig, 'utf8');
+      return true;
+    } catch (error) {
+      console.error('Failed to create default .helixrc:', error);
+      return false;
+    }
+  }
+};
+
 // settings.ts
 var import_obsidian2 = require("obsidian");
 var HelixSettingTab = class extends import_obsidian2.PluginSettingTab {
@@ -623,6 +1067,55 @@ var HelixSettingTab = class extends import_obsidian2.PluginSettingTab {
       this.plugin.settings.highlightSelections = value;
       await this.plugin.saveSettings();
     }));
+    
+    containerEl.createEl("h3", { text: "Custom Configuration (.helixrc)" });
+    
+    new import_obsidian2.Setting(containerEl).setName("Create .helixrc file").setDesc("Create a default .helixrc configuration file in your vault root").addButton((button) => button.setButtonText("Create").setCta().onClick(async () => {
+      const success = await this.plugin.configManager.createDefaultConfig();
+      if (success) {
+        new import_obsidian2.Notice("Created default .helixrc file");
+      } else {
+        new import_obsidian2.Notice("Failed to create .helixrc file");
+      }
+    }));
+    
+    new import_obsidian2.Setting(containerEl).setName("Reload .helixrc").setDesc("Reload custom motions from .helixrc file").addButton((button) => button.setButtonText("Reload").onClick(async () => {
+      await this.plugin.configManager.loadConfig();
+      new import_obsidian2.Notice("Reloaded .helixrc configuration");
+    }));
+    
+    new import_obsidian2.Setting(containerEl).setName("Open .helixrc").setDesc("Open .helixrc file for editing").addButton((button) => button.setButtonText("Open").onClick(async () => {
+      const configPath = this.plugin.configManager.configPath;
+      try {
+        const fs = require('fs');
+        if (fs.existsSync(configPath)) {
+          this.app.workspace.openLinkText('.helixrc', '', false);
+        } else {
+          new import_obsidian2.Notice(".helixrc file not found. Create it first.");
+        }
+      } catch (error) {
+        new import_obsidian2.Notice("Failed to open .helixrc file");
+      }
+    }));
+    
+    // Show current custom motions
+    const customMotionsEl = containerEl.createEl("div", { cls: "custom-motions-display" });
+    if (this.plugin.configManager && this.plugin.configManager.customMotions.size > 0) {
+      customMotionsEl.createEl("h4", { text: "Current Custom Motions" });
+      const motionsTable = customMotionsEl.createEl("table", { cls: "custom-motions-table" });
+      const headerRow = motionsTable.createEl("tr");
+      headerRow.createEl("th", { text: "Key" });
+      headerRow.createEl("th", { text: "Action" });
+      
+      for (const [key, motion] of this.plugin.configManager.customMotions) {
+        const row = motionsTable.createEl("tr");
+        row.createEl("td", { text: key, cls: "keybinding-key" });
+        row.createEl("td", { text: `${motion.action}:${motion.params}`, cls: "keybinding-desc" });
+      }
+    } else {
+      customMotionsEl.createEl("p", { text: "No custom motions defined. Create a .helixrc file to add custom keybindings." });
+    }
+    
     containerEl.createEl("h3", { text: "Keybinding Reference" });
     const referenceEl = containerEl.createEl("div", { cls: "helix-keybinding-reference" });
     const sections = [
@@ -681,6 +1174,15 @@ var HelixSettingTab = class extends import_obsidian2.PluginSettingTab {
         rowEl.createEl("td", { text: desc, cls: "keybinding-desc" });
       });
     });
+    // Add .helixrc documentation
+    const helixrcInfoEl = containerEl.createEl("div", { cls: "helixrc-info" });
+    helixrcInfoEl.innerHTML = `
+			<strong>Custom .helixrc Configuration:</strong><br>
+			Create a <code>.helixrc</code> file in your vault root to define custom motions and keybindings. 
+			The file uses a simple syntax: <code>key = action:parameters</code><br>
+			Example: <code>gw = select:word</code> creates a custom motion to select word under cursor.
+		`;
+
     const philosophyEl = containerEl.createEl("div", { cls: "helix-philosophy" });
     philosophyEl.innerHTML = `
 			<h3>Helix Philosophy</h3>
@@ -690,6 +1192,7 @@ var HelixSettingTab = class extends import_obsidian2.PluginSettingTab {
 				<li><strong>Visual Feedback:</strong> All operations show immediate visual feedback through selections</li>
 				<li><strong>Composable:</strong> Commands can be combined naturally through the selection model</li>
 				<li><strong>Predictable:</strong> What you see selected is exactly what will be affected</li>
+				<li><strong>Customizable:</strong> Define your own motions and keybindings via <code>.helixrc</code> file</li>
 			</ul>
 		`;
   }
@@ -704,10 +1207,15 @@ var DEFAULT_SETTINGS = {
 var HelixPlugin = class extends import_obsidian3.Plugin {
   async onload() {
     await this.loadSettings();
+    this.configManager = new HelixConfigManager(this);
     this.keybindings = new HelixKeybindings(this);
     this.modes = new HelixModes(this);
     this.selectionManager = new SelectionManager(this);
     this.addSettingTab(new HelixSettingTab(this.app, this));
+    
+    // Load .helixrc configuration
+    await this.configManager.loadConfig();
+    
     this.app.workspace.onLayoutReady(() => {
       this.initializePlugin();
     });
@@ -719,6 +1227,46 @@ var HelixPlugin = class extends import_obsidian3.Plugin {
         this.saveSettings();
         new import_obsidian3.Notice(`Helix mode ${this.settings.enabled ? "enabled" : "disabled"}`);
         this.updatePlugin();
+      }
+    });
+    
+    this.addCommand({
+      id: "create-helixrc",
+      name: "Create .helixrc file",
+      callback: async () => {
+        const success = await this.configManager.createDefaultConfig();
+        if (success) {
+          new import_obsidian3.Notice("Created default .helixrc file in vault root");
+        } else {
+          new import_obsidian3.Notice("Failed to create .helixrc file", 5000);
+        }
+      }
+    });
+    
+    this.addCommand({
+      id: "reload-helixrc",
+      name: "Reload .helixrc file",
+      callback: async () => {
+        await this.configManager.loadConfig();
+        new import_obsidian3.Notice("Reloaded .helixrc configuration");
+      }
+    });
+    
+    this.addCommand({
+      id: "open-helixrc",
+      name: "Open .helixrc file",
+      callback: async () => {
+        const configPath = this.configManager.configPath;
+        try {
+          const fs = require('fs');
+          if (fs.existsSync(configPath)) {
+            this.app.workspace.openLinkText('.helixrc', '', false);
+          } else {
+            new import_obsidian3.Notice(".helixrc file not found. Use 'Create .helixrc file' command first.");
+          }
+        } catch (error) {
+          new import_obsidian3.Notice("Failed to open .helixrc file", 5000);
+        }
       }
     });
   }
